@@ -1,0 +1,4 @@
+*.pyc
+*.parquet
+*.sql
+*__pycache__*

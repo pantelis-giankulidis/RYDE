@@ -1,0 +1,12 @@
+services:
+  data-pipeline:
+    build: .
+    container_name: ryde_transformer
+    volumes:
+      - ./data:/data
+    environment:
+      - SQL_ALCHEMY_DATABASE_URL=${SQL_ALCHEMY_DATABASE_URL}
+      - SQL_ALCHEMY_DATABASE_URL_ASYNC=${SQL_ALCHEMY_DATABASE_URL_ASYNC}
+      - MS_SQL_USER=${MS_SQL_USER}
+      - MS_SQL_PASSWORD=${MS_SQL_PASSWORD}
+      
