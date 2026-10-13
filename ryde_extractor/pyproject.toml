@@ -1,0 +1,20 @@
+[project]
+name = "ryde-extractor"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "pandelis-giankulidis",email = "pantelis.giankoulidis+1@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi (>=0.143.0,<0.144.0)",
+    "uvicorn (>=0.54.0,<0.55.0)"
+]
+
+[tool.poetry]
+packages = [{include = "ryde_extractor", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
