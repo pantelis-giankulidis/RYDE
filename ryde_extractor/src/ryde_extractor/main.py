@@ -1,13 +1,10 @@
 import logging
 
 from fastapi import FastAPI, HTTPException
+from src.ryde_extractor.LifeSpan import aws_scanner 
 
-#from app.consumer import process_payload
 
-#logging.basicConfig(level=logging.INFO)
-#log = logging.getLogger("rainbow-dataset-pipeline")
-
-app = FastAPI(title="ryde_extractor")
+app = FastAPI(title="ryde_extractor", lifespan = aws_scanner)
 
 def main():
     return app
