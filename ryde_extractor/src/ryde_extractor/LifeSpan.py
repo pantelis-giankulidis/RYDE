@@ -4,39 +4,43 @@ from src.ryde_extractor.DataCrawler import AWSTaxiDataCrawler
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import asyncio 
+import aiohttp
 
-dc = AWSTaxiDataCrawler(port = 8080)
+SYNC_INTERVAL_SECONDS = 3600
 
-async def periodic_health_check(interval_seconds: int = 120):
-    while True:
-        try:
-            logger.info("Starting scheduled hourly health check...")
-            dc = AWSTaxiDataCrawler()
-            await dc.start()
-            await asyncio.sleep(interval_seconds)
-        except asyncio.CancelledError:
-            logger.info("Health check task requested to cancel.")
-            break
-        except Exception as e:
-            logger.error(f"Error during health check: {e}")
-            await asyncio.sleep(10)
+dc = AWSTaxiDataCrawler()
+
+async def periodic_parquet_check(app: FastAPI, interval_seconds: int = 120) -> None:
+    timeout = aiohttp.ClientTimeout(total=None, sock_connect=15, sock_read=120)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        while True:
+            logger.info("Starting scheduled hourly parquet files check...")
+            try:
+                results = await dc.start(session)
+                app.state.sync_status = {
+                    "last_run": datetime.now(timezone.utc).isoformat(),
+                    "results": results,
+                }
+                logger.info("Sync finished: %s", results)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Sync run failed")
+            await asyncio.sleep(SYNC_INTERVAL_SECONDS)
+    
 
 @asynccontextmanager
 async def aws_scanner(app: FastAPI):
     logger.info("Starting AWS scanning for fresh parquet files ...")
-    await dc.start()
-    
-    aws_scanning_task = asyncio.create_task(periodic_health_check(interval_seconds=3600))
+    app.state.sync_status = {"last_run": None, "results": {}}
+    aws_scanning_task = asyncio.create_task(periodic_parquet_check(app, 3600))
 
-    yield  
-
-    logger.info("Stopping AWS scanning job...")
-    aws_scanning_task.cancel()
-    
     try:
-        await aws_scanning_task
-    except asyncio.CancelledError:
-        pass
+        yield  
+    finally:
+        logger.info("Stopping AWS scanning job...")
+        aws_scanning_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
 
     logger.info("Shutting down AWS scanner...")
-    await dc.stop()

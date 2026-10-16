@@ -2,12 +2,31 @@ from collections import defaultdict
 import aiohttp
 # pyrefly: ignore [missing-import]
 from aiohttp import web
+from datetime import datetime, timezone
+from pathlib import Path
+from src.ryde_extractor.Logger import logger
+from contextlib import asynccontextmanager
+from botocore.exceptions import ClientError
 import os
 import boto3 
+import asyncio
+import tempfile
+import contextlib
+import pyarrow.parquet as pq
 
 S3_BUCKET = os.getenv("TARGET_S3_BUCKET", "my-data-warehouse-lake")
+S3_PREFIX = os.getenv("TARGET_S3_PREFIX", "nyc-taxi/yellow/processed")
 BASE_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data"
 s3_client = boto3.client("s3")
+YEAR = 2026
+
+def file_name(year: int, month: int) -> str:
+    return f"yellow_tripdata_{year}-{month:02d}.parquet"
+ 
+ 
+def s3_key(year: int, month: int) -> str:
+    return f"{S3_PREFIX}/year={year}/month={month:02d}/{file_name(year, month)}"
+
 
 
 class AWSTaxiDataCrawler:
@@ -20,67 +39,83 @@ class AWSTaxiDataCrawler:
         self.session = None # To make requests to backend
         self.health_check_task = None
 
-    def _health_endpoint(self,request: aiohttp.web.Request):
-        """Health check endpoint for the load balancer itself"""
-        healthy_backends = sum(1 for b in self.backends if b.healthy)
+    def stored_source_etag(self, key: str) -> str | None:
+        """Source ETag we saved as metadata on our processed copy, or None if not stored."""
+        try:
+            head = s3_client.head_object(Bucket=S3_BUCKET, Key=key)
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+                return None
+            raise
+        return head.get("Metadata", {}).get("source-etag")
 
-        if healthy_backends > 0:
-            return aiohttp.web.json_response({
-                "status": "healthy",
-                "healthy_backends": healthy_backends,
-                "total_backends": len(self.backends)
-            })
+    def process_file(self, src: Path, dst: Path) -> None:
+        """Your 'some work' on the parquet goes here (blocking, runs in a thread)."""
+        table = pq.read_table(src)
+        # e.g. drop bad rows, cast columns, add columns ...
+        pq.write_table(table, dst, compression="zstd")
+
+    async def fetch_source_etag(self, session: aiohttp.ClientSession, url: str) -> str | None:
+        """HEAD the source file. Returns its ETag, or None if it isn't published yet."""
+        async with session.head(url, allow_redirects=True) as resp:
+            # CloudFront answers 403 (sometimes 404) for files that don't exist yet
+            if resp.status in (403, 404):
+                return None
+            resp.raise_for_status()
+            return resp.headers.get("ETag", "").strip('"') or resp.headers.get("Content-Length", "")
+
+    async def download(self, session: aiohttp.ClientSession, url: str, dest: Path) -> None:
+        async with session.get(url) as resp:
+            resp.raise_for_status()
+            with open(dest, "wb") as f:
+                async for chunk in resp.content.iter_chunked(1 << 20):
+                    f.write(chunk)
+
+    
+
+    async def sync_month(self, session: aiohttp.ClientSession, month: int) -> str:
+        url = f"{BASE_URL}/{file_name(YEAR, month)}"
+        key = s3_key(YEAR, month)
+ 
+        source_etag = await self.fetch_source_etag(session, url)
+        if source_etag is None:
+            return "not_published"
+ 
+        if await asyncio.to_thread(self.stored_source_etag, key) == source_etag:
+            return "up_to_date"
+ 
+        with tempfile.TemporaryDirectory() as tmp:
+            raw, processed = Path(tmp) / "raw.parquet", Path(tmp) / "processed.parquet"
+            await self.download(session, url, raw)
+            await asyncio.to_thread(self.process_file, raw, processed)
+            await asyncio.to_thread(
+                s3_client.upload_file,
+                str(processed),
+                S3_BUCKET,
+                key,
+                ExtraArgs={"Metadata": {"source-etag": source_etag}},
+            )
+        return "uploaded"
+
+    async def start(self, session: aiohttp.ClientSession) -> dict[str, str]:
+        now = datetime.now(timezone.utc)
+        if YEAR < now.year:
+            last_month = 12
+        elif YEAR == now.year:
+            last_month = now.month
         else:
-            return aiohttp.web.json_response({
-                "status": "unhealthy",
-                "healthy_backends": 0,
-                "total_backends": len(self.backends)
-            }, status=503)
-
-    def run_sync_job(taxi_type: str, start_year: int, end_year: int):
-        """Worker task that scans missing months and syncs them."""
-        with httpx.Client() as client:
-            for year in range(start_year, end_year + 1):
-                for month in range(1, 13):
-                    month_str = f"{month:02d}"
-                    filename = f"{taxi_type}_tripdata_{year}-{month_str}.parquet"
-                    source_url = f"{BASE_URL}/{filename}"
-                    s3_key = f"raw/nyctaxi/{taxi_type}/year={year}/month={month_str}/{filename}"
-
-                    # 1. Skip if already processed
-                    if s3_file_exists(S3_BUCKET, s3_key):
-                        continue
-
-                    # 2. Check if published upstream
-                    head_resp = client.head(source_url, follow_redirects=True)
-                    if head_resp.status_code == 200:
-                        # 3. Stream direct to target S3 warehouse
-                        stream_url_to_s3(source_url, S3_BUCKET, s3_key)
-
-    async def check_remote_file_exists(client: httpx.AsyncClient, url: str) -> bool:
-        """Uses a HEAD request to verify file publication without downloading payload."""
-        response = await client.head(url, follow_redirects=True)
-        return response.status_code == 200
-
-    async def start(self):
-        app = web.Application()
-        app.router.add_route('*', '/health', self._health_endpoint)
-        runner = aiohttp.web.AppRunner(app)
-        # Asynchronously initializes the application so it’s ready to serve requests.
-        await runner.setup()
-
-        # TCPSite represents a concrete listening endpoint
-        # could create multiple sites (e.g., different addresses/ports) for the same application.
-        site = aiohttp.web.TCPSite(runner, '0.0.0.0', self.port)
-        await site.start()
-
-    async def stop(self):
-        if self.health_check_task:
-            self.health_check_task.cancel()
+            last_month = 0
+ 
+        results: dict[str, str] = {}
+        for month in range(1, last_month + 1):
+            name = file_name(YEAR, month)
             try:
-                await self.health_check_task
+                results[name] = await self.sync_month(session, month)
             except asyncio.CancelledError:
-                pass
+                raise
+            except Exception:
+                logger.exception("Failed syncing %s", name)
+                results[name] = "error"  # retried on the next cycle
+        return results
 
-        if self.session:
-            await self.session.close()
+    
