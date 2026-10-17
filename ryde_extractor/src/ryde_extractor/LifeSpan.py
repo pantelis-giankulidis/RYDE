@@ -8,7 +8,7 @@ import aiohttp
 import contextlib
 from datetime import datetime, timezone
 
-SYNC_INTERVAL_SECONDS = 3600
+SYNC_INTERVAL_SECONDS = 36000
 
 dc = AWSTaxiDataCrawler()
 

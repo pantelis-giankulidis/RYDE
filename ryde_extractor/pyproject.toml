@@ -17,7 +17,8 @@ dependencies = [
     "pyarrow (>=26.0.0,<27.0.0)",
     "pathlib (>=1.0.1,<2.0.0)",
     "datetime (>=6.0,<7.0)",
-    "botocore (>=1.43.114,<2.0.0)"
+    "botocore (>=1.43.114,<2.0.0)",
+    "dotenv (>=0.9.9,<0.10.0)"
 ]
 
 [tool.poetry]

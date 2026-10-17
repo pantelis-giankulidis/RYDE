@@ -13,10 +13,13 @@ import asyncio
 import tempfile
 import contextlib
 import pyarrow.parquet as pq
+from dotenv import load_dotenv
 
-S3_BUCKET = os.getenv("TARGET_S3_BUCKET", "ryde-main-data-lake")
-S3_PREFIX = os.getenv("TARGET_S3_PREFIX", "nyc-taxi/yellow/processed")
-CLOUDFRONT_BASE = "https://d37ci6vzurychx.cloudfront.net/trip-data"
+load_dotenv()
+
+S3_BUCKET = os.getenv("TARGET_S3_BUCKET")
+S3_PREFIX = os.getenv("TARGET_S3_PREFIX")
+CLOUDFRONT_BASE = os.getenv("CLOUDFRONT_BASE")
 s3_client = boto3.client("s3")
 YEAR = 2026
 
