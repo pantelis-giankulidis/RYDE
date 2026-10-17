@@ -5,6 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import asyncio 
 import aiohttp
+import contextlib
+from datetime import datetime, timezone
 
 SYNC_INTERVAL_SECONDS = 3600
 
@@ -41,6 +43,6 @@ async def aws_scanner(app: FastAPI):
         logger.info("Stopping AWS scanning job...")
         aws_scanning_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await task
+            await aws_scanning_task
 
     logger.info("Shutting down AWS scanner...")
