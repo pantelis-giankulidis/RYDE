@@ -14,7 +14,7 @@ import tempfile
 import contextlib
 import pyarrow.parquet as pq
 
-S3_BUCKET = os.getenv("TARGET_S3_BUCKET", "my-data-warehouse-lake")
+S3_BUCKET = os.getenv("TARGET_S3_BUCKET", "ryde-main-data-lake")
 S3_PREFIX = os.getenv("TARGET_S3_PREFIX", "nyc-taxi/yellow/processed")
 CLOUDFRONT_BASE = "https://d37ci6vzurychx.cloudfront.net/trip-data"
 s3_client = boto3.client("s3")
@@ -74,7 +74,7 @@ class AWSTaxiDataCrawler:
     
 
     async def sync_month(self, session: aiohttp.ClientSession, month: int) -> str:
-        url = f"{BASE_URL}/{file_name(YEAR, month)}"
+        url = f"{CLOUDFRONT_BASE}/{file_name(YEAR, month)}"
         key = s3_key(YEAR, month)
  
         source_etag = await self.fetch_source_etag(session, url)
@@ -98,8 +98,6 @@ class AWSTaxiDataCrawler:
         return "uploaded"
 
     async def start(self, session: aiohttp.ClientSession) -> dict[str, str]:
-        print(boto3.Session().get_credentials())   # None => nothing found
-        print(boto3.Session().profile_name, boto3.Session().region_name)
         now = datetime.now(timezone.utc)
         if YEAR < now.year:
             last_month = 12
