@@ -8,7 +8,7 @@ import aiohttp
 import contextlib
 from datetime import datetime, timezone
 
-SYNC_INTERVAL_SECONDS = 36000
+SYNC_INTERVAL_SECONDS = 3600*24
 
 dc = AWSTaxiDataCrawler()
 
@@ -16,7 +16,7 @@ async def periodic_parquet_check(app: FastAPI, interval_seconds: int = 120) -> N
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=15, sock_read=120)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         while True:
-            logger.info("Starting scheduled hourly parquet files check...")
+            logger.info("Starting scheduled daily parquet files check...")
             try:
                 results = await dc.start(session)
                 app.state.sync_status = {
