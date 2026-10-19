@@ -17,16 +17,11 @@ def transform_data(scanner):
     writer = None 
     for batch in scanner.to_batches():
         df = batch.to_pandas()
-
         df = df.dropna(how="all")
         df = df.drop_duplicates()
-
         cleaned_batch = pa.RecordBatch.from_pandas(df)
-
-
         if writer is None:
             writer = pq.ParquetWriter(output_path, cleaned_batch.schema, compression="snappy")
-            
         writer.write_batch(cleaned_batch)
 
 def load_data():
