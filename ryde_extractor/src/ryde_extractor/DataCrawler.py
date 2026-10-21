@@ -14,23 +14,14 @@ import tempfile
 import contextlib
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
+from src.ryde_extractor.utils.utils import file_name, s3_key
 
 load_dotenv()
 
 S3_BUCKET = os.getenv("TARGET_S3_BUCKET")
-S3_PREFIX = os.getenv("TARGET_S3_PREFIX")
 CLOUDFRONT_BASE = os.getenv("CLOUDFRONT_BASE")
 s3_client = boto3.client("s3")
 YEAR = 2026
-
-def file_name(year: int, month: int) -> str:
-    return f"yellow_tripdata_{year}-{month:02d}.parquet"
- 
- 
-def s3_key(year: int, month: int) -> str:
-    return f"{S3_PREFIX}/year={year}/month={month:02d}/{file_name(year, month)}"
-
-
 
 class AWSTaxiDataCrawler:
     def __init__(self, port: int = 8888, health_check_interval: int = 30):
