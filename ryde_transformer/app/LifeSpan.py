@@ -27,7 +27,8 @@ async def execute_pipeline(bucket: str, key: str):
         pl = BronzeToSilverPipeline(s3_client, bucket, extracted_key["decoded_key"])
         return await asyncio.to_thread(pl.execute)
     if extracted_key["source"] == "silver":
-        pl = SilverToGoldPipeline()
+        pl = SilverToGoldPipeline(s3_client, bucket, extracted_key["decoded_key"])
+        return await asyncio.to_thread(pl.execute)
 
 async def aws_listener() -> None:
     session = aioboto3.Session()
