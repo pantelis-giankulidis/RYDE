@@ -53,7 +53,7 @@ class SilverToGoldPipeline:
             .agg(pl.len().alias("pickup_in_hour"))
             .sort("tpep_pickup_time")
         )
-
+        df = df.join(pickup_pick, how='left', on='tpep_pickup_time')
         return df
 
     def calculate_pick_locations(self, df):
@@ -73,7 +73,7 @@ class SilverToGoldPipeline:
             .agg(pl.len().alias("dropoffs_in_location"))
             .sort("DOLocationID")
         )
-
+        df = df.join(dropoff_location, how='left', on='DOLocationID')
         return df
 
         async def upload_file():
