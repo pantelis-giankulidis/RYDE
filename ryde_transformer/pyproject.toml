@@ -7,6 +7,7 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+    "fastapi (>=0.143.5,<0.144.0)",
     "logging (>=0.4.9.6,<0.5.0.0)",
     "aiohttp (>=3.14.5,<4.0.0)",
     "asyncio (>=4.0.0,<5.0.0)",
@@ -15,11 +16,6 @@ dependencies = [
     "uvicorn (>=0.54.0,<0.55.0)",
     "polars (>=2.0.0,<3.0.0)",
     "pyarrow (>=26.0.0,<27.0.0)"
-]
-
-[dependency-groups]
-dev = [
-    "fastapi (>=0.143.5,<0.144.0)"
 ]
 
 

@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-QUEUE_URL = os.getenv("QUEUE_URL")
+QUEUE_URL = os.getenv("QUEUE_URL", default = None)
 
 SYNC_INTERVAL_SECONDS = 3600*24
 
@@ -69,6 +69,8 @@ async def aws_listener() -> None:
 async def lifespan(app: FastAPI):
     logger.info("Starting AWS subscription for fresh bronze(raw) parquet files ...")
     app.state.sync_status = {"last_run": None, "results": {}}
+    if QUEUE_URL is None:
+        raise Exception("Cannot get the SQS name to listen to. Abort")
     aws_scanning_task = asyncio.create_task(aws_listener())
 
     try:
