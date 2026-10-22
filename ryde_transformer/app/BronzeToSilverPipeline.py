@@ -10,7 +10,7 @@ class BronzeToSilverPipeline:
         self.key = key
 
     def execute(self):
-        logger.info("Reading parquet data...")
+        logger.info("Reading parquet data from /bronze bucket directory ...")
         df = self.extract()
         df = self.transform(df)
         self.load(df)
