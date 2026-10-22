@@ -18,8 +18,8 @@ from src.ryde_extractor.utils.utils import file_name, s3_key
 
 load_dotenv()
 
-S3_BUCKET = os.getenv("TARGET_S3_BUCKET")
-CLOUDFRONT_BASE = os.getenv("CLOUDFRONT_BASE")
+S3_BUCKET = os.getenv("TARGET_S3_BUCKET", default = None)
+CLOUDFRONT_BASE = os.getenv("CLOUDFRONT_BASE", default = None)
 s3_client = boto3.client("s3")
 YEAR = 2026
 
@@ -36,6 +36,8 @@ class AWSTaxiDataCrawler:
     def stored_source_etag(self, key: str) -> str | None:
         """Source ETag we saved as metadata on our processed copy, or None if not stored."""
         try:
+            if S3_BUCKET is None:
+                raise Exception(f"Cannot find s3 bucket name. It is None")
             head = s3_client.head_object(Bucket=S3_BUCKET, Key=key)
         except ClientError as e:
             if e.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
@@ -68,6 +70,9 @@ class AWSTaxiDataCrawler:
     
 
     async def sync_month(self, session: aiohttp.ClientSession, month: int) -> str:
+        if CLOUDFRONT_BASE is None:
+            raise Exception("Cannot Read Cloudfront url to download parquet files. Abort.")
+            
         url = f"{CLOUDFRONT_BASE}/{file_name(YEAR, month)}"
         key = s3_key(YEAR, month)
  

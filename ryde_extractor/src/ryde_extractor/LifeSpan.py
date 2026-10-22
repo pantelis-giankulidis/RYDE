@@ -12,7 +12,7 @@ SYNC_INTERVAL_SECONDS = 3600*24
 
 dc = AWSTaxiDataCrawler()
 
-async def periodic_parquet_check(app: FastAPI, interval_seconds: int = 120) -> None:
+async def periodic_parquet_check(app: FastAPI, interval_seconds: int = SYNC_INTERVAL_SECONDS) -> None:
     timeout = aiohttp.ClientTimeout(total=None, sock_connect=15, sock_read=120)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         while True:
@@ -28,7 +28,7 @@ async def periodic_parquet_check(app: FastAPI, interval_seconds: int = 120) -> N
                 raise
             except Exception:
                 logger.exception("Sync run failed")
-            await asyncio.sleep(SYNC_INTERVAL_SECONDS)
+            await asyncio.sleep(interval_seconds)
     
 
 @asynccontextmanager
