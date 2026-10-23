@@ -18,7 +18,7 @@ async def aws_reader(app: FastAPI, interval_seconds: int = SYNC_INTERVAL_SECONDS
         while True:
             logger.info("Starting scheduled daily parquet files check...")
             try:
-                results = await dc.start(session)
+                results = await dc.start()
                 app.state.sync_status = {
                     "last_run": datetime.now(timezone.utc).isoformat(),
                     "results": results,
